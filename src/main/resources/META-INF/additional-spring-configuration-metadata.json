@@ -1,0 +1,5 @@
+{"properties": [{
+  "name": "url-api-security-data-inquiry",
+  "type": "java.lang.String",
+  "description": "Api para obtener dato seguro"
+}]}

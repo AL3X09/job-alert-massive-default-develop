@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE configuration>
+<configuration>
+
+	<property name="LOG_HOME" value="/data/logs/admin_alertas/" />
+	<property name="LOG_FILE"
+		value="jobalertmassivedefault_%d{yyyyMMddHH}.log"></property>
+
+	<appender name="LOG_AM"
+		class="ch.qos.logback.core.ConsoleAppender">
+		<encoder>
+			<charset>UTF-8</charset>
+			<Pattern>%d{yyyyMMdd-HH:mm:ss} [%-5level] %logger[%method] -> %msg%n</Pattern>
+		</encoder>
+	</appender>
+
+	<appender name="FILE"
+		class="ch.qos.logback.core.rolling.RollingFileAppender">
+		<file>${LOG_HOME}/${LOG_FILE}</file>
+		<append>true</append>
+		<prudent>true</prudent>
+		<encoder>
+			<charset>UTF-8</charset>
+			<Pattern>%d{yyyyMMdd-HH:mm:ss} [%-5level] %logger[%method] -> %msg%n</Pattern>
+		</encoder>
+		<rollingPolicy
+			class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+			<fileNamePattern>${LOG_HOME}/${LOG_FILE}</fileNamePattern>
+			<maxHistory>60</maxHistory>
+		</rollingPolicy>
+	</appender>
+
+	<root level="INFO">
+		<appender-ref ref="LOG_AM" />
+		<appender-ref ref="FILE" />
+	</root>
+</configuration>

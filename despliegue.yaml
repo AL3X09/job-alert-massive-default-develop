@@ -1,0 +1,222 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    app: job-alert-massive-default
+  name: job-alert-massive-default
+  namespace: alertas
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app: job-alert-massive-default
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "true"
+      creationTimestamp: null
+      labels:
+        app: job-alert-massive-default
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - args:
+            - -c
+            - java -Duser.timezone=America/Bogota -Dspring.profiles.active=@envprof@ -Djava.security.egd=file:/dev/./urandom
+              -jar app.jar
+          command:
+            - /bin/sh
+          env:
+            - name: JAVA_OPTS
+              # Memoria de 1GB para la JVM
+              value: "-Xmx2048m -Xms2048m"
+            - name: THREAD_POOL_SIZE
+              # Configuración de 12 hilos para procesamiento paralelo
+              value: "12"
+            - name: SECRETS_USER_DB
+              valueFrom:
+                secretKeyRef:
+                  key: spring.datasource.username
+                  name: alertas-datasource-admin-@envprof@
+            - name: SECRETS_PASSWORD_DB
+              valueFrom:
+                secretKeyRef:
+                  key: spring.datasource.password
+                  name: alertas-datasource-admin-@envprof@
+            - name: SECRETS_URL_DB
+              valueFrom:
+                secretKeyRef:
+                  key: spring.datasource.url
+                  name: alertas-datasource-admin-@envprof@
+          image: 10.129.146.30:8081/job-alert-massive-default:@Ver_imagen@
+          imagePullPolicy: Always
+          name: job-alert-massive-default
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            seccompProfile:
+              type: "RuntimeDefault"
+          ports:
+            - containerPort: 31795
+              protocol: TCP
+          readinessProbe:
+            failureThreshold: 10
+            httpGet:
+              path: /alert/massive/default/health
+              port: 31795
+              scheme: HTTP
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+          resources:
+            requests:
+              # Aumentar CPU a 2 vCPU
+              cpu: "2"
+              # Asegurar 1.5GB de memoria
+              memory: "1.5Gi"
+            limits:
+              # No permitir más de 3 vCPU
+              cpu: "3"
+              # Limitar a 1.5GB en caso de picos
+              memory: "2Gi"
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+            - mountPath: /data/logs/admin_alertas
+              name: locale-volume
+            - mountPath: /data/alertas_paycentral
+              name: locale-validacion
+            - mountPath: /etc/localtime
+              name: timezone-volume
+      dnsPolicy: ClusterFirst
+      imagePullSecrets:
+        - name: my-docker-creds
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - hostPath:
+            path: /data/logs/admin_alertas
+            type: Directory
+          name: locale-volume
+        - hostPath:
+            path: /data/alertas_paycentral
+            type: Directory
+          name: locale-validacion
+        - hostPath:
+            path: /usr/share/zoneinfo/America/Bogota
+            type: File
+          name: timezone-volume
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: job-alert-massive-default
+  namespace: alertas
+  labels:
+    app: job-alert-massive-default
+spec:
+  selector:
+    app: job-alert-massive-default
+  ports:
+    - name: tcp-31795-31795
+      protocol: TCP
+      port: 31795
+
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: job-alert-massive-default-gateway
+  namespace: alertas
+spec:
+  selector:
+    # Which pods we want to expose as Istio router
+    # This label points to the default one installed from file istio-demo.yaml
+    istio: ingressgateway
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      # Here we specify which Kubernetes service names
+      # we want to serve through this Gateway
+      hosts:
+        - "*"
+
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: job-alert-massive-default
+  namespace: alertas
+spec:
+  hosts:
+    - "*"
+  gateways:
+    - job-alert-massive-default-gateway
+  http:
+    # Bloque para rutas normales
+    - match:
+        - uri:
+            exact: /alert/massive/default
+        - uri:
+            exact: /alert/massive/default/health
+        - uri:
+            prefix: /alert/massive/default/daily/
+        - uri:
+            prefix: /alert/massive/default/inactivate/daily/
+      route:
+        - destination:
+            host: job-alert-massive-default
+            port:
+              number: 31795
+    # Bloque para rutas Swagger
+    - match:
+        - uri:
+            exact: /alert/massive/default/swagger-ui.html
+        - uri:
+            prefix: /alert/massive/default/swagger-ui/
+        - uri:
+            prefix: /alert/massive/default/v3/api-docs
+        - uri:
+            prefix: /alert/massive/default/webjars/
+      route:
+        - destination:
+            host: job-alert-massive-default
+            port:
+              number: 31795
+
+---
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: job-alert-massive-default
+  namespace: alertas
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: job-alert-massive-default
+  minReplicas: MIN_REP
+  maxReplicas: MAX_REP
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        targetAverageUtilization: 60
+    - type: Resource
+      resource:
+        name: memory
+        targetAverageUtilization: 60
