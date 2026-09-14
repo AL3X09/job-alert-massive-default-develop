@@ -1,0 +1,90 @@
+openapi: 3.0.1
+info:
+  title: API de Alertas Móviles – Creación o Inactivación Alertas Masivas
+  version: AM-330
+  description: Documentación de servicios de Alertas Móviles – Alerta Masivas e Inactivación Masivas
+servers:
+  - url: /
+paths:
+  /alert/massive/default/daily/{date}:
+    get:
+      summary: Procesa la creación de alertas masivas
+      description: Este endpoint procesa las alertas a crear, las cuales llegan en un archivo .TXT billpay_C_yyyymmdd.txt
+      operationId: processSaveAlertsMassive
+      parameters:
+        - name: date
+          in: path
+          required: true
+          description: Fecha en formato yyyyMMdd
+          schema:
+            type: string
+            example: '20250723'
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+  /alert/massive/default/inactivate/daily/{date}:
+    get:
+      summary: Procesa la inactivación de alertas
+      description: Este endpoint procesa las alertas a inactivar, las cuales llegan en un archivo .TXT billpay_I_yyyymmdd.txt
+      operationId: processInactivateAlertsMassive
+      parameters:
+        - name: date
+          in: path
+          required: true
+          description: Fecha en formato yyyyMMdd
+          schema:
+            type: string
+            example: '20250723'
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+  /alert/massive/default/health:
+    get:
+      summary: Health Check del servicio
+      operationId: health
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: string
+                example: "OK - Version: AM-330.23"
+components:
+  schemas:
+    Response:
+      type: object
+      properties:
+        Status:
+          $ref: '#/components/schemas/Status'
+        RqUID:
+          type: string
+          description: Identificador único de la petición
+        startTime:
+          type: string
+          format: date-time
+        finishTime:
+          type: string
+          format: date-time
+          nullable: true
+    Status:
+      type: object
+      properties:
+        statusCode:
+          type: string
+        statusDesc:
+          type: string
+        serverStatusCode:
+          type: string
+        serverStatusDesc:
+          type: string
+        severity:
+          type: string
